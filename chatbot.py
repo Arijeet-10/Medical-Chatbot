@@ -28,11 +28,13 @@ st.markdown("""
     }
     
     .chat-container {
-        background: #f8f9fa;
+        background: #ffffff;
         padding: 1.5rem;
         border-radius: 10px;
         border-left: 4px solid #ff6b9d;
         margin: 1rem 0;
+        color: #1a1a1a;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
     
     .user-message {
@@ -41,6 +43,8 @@ st.markdown("""
         border-radius: 10px;
         margin: 1rem 0;
         border-left: 4px solid #2196f3;
+        color: #1a1a1a;
+        font-weight: 500;
     }
     
     .bot-message {
@@ -49,6 +53,8 @@ st.markdown("""
         border-radius: 10px;
         margin: 1rem 0;
         border-left: 4px solid #9c27b0;
+        color: #1a1a1a;
+        font-weight: 500;
     }
     
     .info-box {
@@ -154,7 +160,7 @@ if 'chat_history' not in st.session_state:
 
 # Sidebar
 with st.sidebar:
-    st.markdown('<div class="sidebar-content">', unsafe_allow_html=True)
+    st.markdown("<h2 style='color: #f39c12;'>💬 Medical Chatbot</h2>", unsafe_allow_html=True)
     st.markdown("### 🎗️ About This Chatbot")
     st.write("This AI-powered chatbot provides information about women's cancer awareness in both Bengali and English.")
     
@@ -231,8 +237,8 @@ def main():
     sample_questions = [
         "What are the early signs of breast cancer?",
         "স্তন ক্যান্সারের প্রাথমিক লক্ষণগুলি কী?",
-        "How often should I get screened?",
-        "প্রতিরোধের উপায় কী?"
+        "How HPV transmitted?",
+        "কীভাবে এইচপিভি সংক্রমণিত?"
     ]
     
     cols = st.columns(2)
@@ -311,16 +317,16 @@ def main():
                 </div>
                 """, unsafe_allow_html=True)
     
-    # Footer
-    st.markdown("---")
-    st.markdown("""
-    <div style="text-align: center; padding: 2rem; background: #f8f9fa; border-radius: 10px; margin-top: 2rem;">
-        <p><strong>🎗️ Women Cancer Awareness Chatbot</strong></p>
-        <p><em>Empowering women with knowledge and awareness</em></p>
-        <p>⚠️ <strong>Disclaimer:</strong> This chatbot provides general information only. 
-        Always consult healthcare professionals for medical advice.</p>
-    </div>
-    """, unsafe_allow_html=True)
+    # # Footer
+    # st.markdown("---")
+    # st.markdown("""
+    # <div style="text-align: center; padding: 2rem; background: #f8f9fa; border-radius: 10px; margin-top: 2rem;">
+    #     <p><strong>🎗️ Women Cancer Awareness Chatbot</strong></p>
+    #     <p><em>Empowering women with knowledge and awareness</em></p>
+    #     <p>⚠️ <strong>Disclaimer:</strong> This chatbot provides general information only. 
+    #     Always consult healthcare professionals for medical advice.</p>
+    # </div>
+    # """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
