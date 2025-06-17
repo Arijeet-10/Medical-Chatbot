@@ -66,3 +66,10 @@ def answer_question(q: Question):
         df["score"] = df["Queries_Bengali"].apply(lambda x: jaccard_similarity(input_keywords, extract_keywords_bengali(x)))
         best_row = df.loc[df["score"].idxmax()]
         return {"answer": best_row["Ans_Bengali"]}
+
+if __name__ == "__main__":
+    import uvicorn
+    import os
+
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
