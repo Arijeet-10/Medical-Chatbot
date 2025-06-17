@@ -11,9 +11,8 @@ import uvicorn
 import os
 
 
-nltk.data.path.append("nltk_data")  # Use a local directory
-nltk.download("punkt", download_dir="nltk_data")
-nltk.download("stopwords", download_dir="nltk_data")
+nltk_path = os.path.join(os.path.dirname(__file__), "nltk_data")
+nltk.data.path.append(nltk_path)
 
 # --- Step 1: Centralized App State ---
 app_state = {}
