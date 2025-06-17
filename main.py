@@ -11,13 +11,16 @@ import uvicorn
 import os
 
 # --- Step 1: Centralized App State ---
-# This dictionary will hold our pre-processed data, so we don't reload it constantly.
 app_state = {}
 
-# --- Step 2: Pre-computation and Loading Logic ---
-# These functions will be the same, but we'll call them during startup.
-stop_words = set(stopwords.words("english"))
+# --- MODIFICATION 1: SAFE INITIALIZATION ---
+# Initialize `stop_words` as an empty set. This is safe to run at import time
+# because it doesn't try to load any files. We will fill it during startup.
+stop_words = set()
 
+# --- Step 2: Helper Functions ---
+# This function will now use the global `stop_words` variable, which will be
+# populated correctly by our startup function before this is ever called.
 def extract_keywords(text: str) -> set:
     """Extracts keywords from English text and returns a set for fast comparison."""
     if not isinstance(text, str):
@@ -40,26 +43,30 @@ def jaccard_similarity(a_set: set, b_set: set) -> float:
 def detect_language(text: str) -> str:
     """Detects if text is likely Bengali ('bn') or English ('en')."""
     try:
-        # A simple heuristic: if a short text doesn't change after "translation" to English,
-        # it's likely English. This is not foolproof but works for many cases.
         translated_text = GoogleTranslator(source='auto', target='en').translate(text[:200])
         return 'bn' if text[:10] != translated_text[:10] else 'en'
     except Exception:
-        return 'en' # Default to English on any error
+        return 'en'
 
 # --- Step 3: FastAPI Startup Event ---
 # This function will run ONLY ONCE when the application starts.
 def setup_application():
+    # --- MODIFICATION 2: LOAD STOPWORDS HERE ---
+    # Use the `global` keyword to modify the `stop_words` set we defined outside.
+    # This is the correct place to load file-based data.
+    global stop_words
+    print("Loading NLTK stopwords...")
+    stop_words = set(stopwords.words("english"))
+    print("Stopwords loaded successfully.")
+
     print("Loading and pre-processing QA data...")
-    # Load the Excel file
     df = pd.read_excel("Women_Cancer_QA.xlsx")
     df.dropna(subset=["Queries", "Answers", "Queries_Bengali", "Ans_Bengali"], inplace=True)
 
-    # Pre-calculate keywords for ALL rows and store them in new columns.
+    # Now that stopwords are loaded, this `apply` call will work correctly.
     df["en_keywords"] = df["Queries"].apply(extract_keywords)
     df["bn_keywords"] = df["Queries_Bengali"].apply(extract_keywords_bengali)
 
-    # Store the processed DataFrame in our app_state
     app_state["processed_df"] = df
     print("Data loaded and pre-processed successfully.")
 
@@ -67,11 +74,9 @@ def setup_application():
 app = FastAPI(on_startup=[setup_application])
 
 # --- Step 4: Updated CORS Middleware ---
-# Allow all origins for easier deployment.
-# For production, you might want to replace "*" with your frontend's actual URL.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # CHANGED
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -90,18 +95,17 @@ def answer_question(q: Question):
     question_text = q.question
     lang = detect_language(question_text)
 
-    # Retrieve the pre-processed DataFrame from our app_state
-    df = app_state["processed_df"]
+    df = app_state.get("processed_df")
+    if df is None:
+        return {"error": "Data not loaded yet. Please try again in a moment."}
 
     if lang == "en":
         input_keywords = extract_keywords(question_text)
-        # Calculate scores against the PRE-PROCESSED keywords. This is much faster.
         df["score"] = df["en_keywords"].apply(lambda x: jaccard_similarity(input_keywords, x))
         best_row = df.loc[df["score"].idxmax()]
         return {"answer": best_row["Answers"]}
     else: # 'bn'
         input_keywords = extract_keywords_bengali(question_text)
-        # Calculate scores against the PRE-PROCESSED keywords.
         df["score"] = df["bn_keywords"].apply(lambda x: jaccard_similarity(input_keywords, x))
         best_row = df.loc[df["score"].idxmax()]
         return {"answer": best_row["Ans_Bengali"]}
@@ -110,4 +114,5 @@ def answer_question(q: Question):
 # This block is for local development (running `python main.py`)
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
+    # Note: uvicorn.run will call the setup_application function for you.
     uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
