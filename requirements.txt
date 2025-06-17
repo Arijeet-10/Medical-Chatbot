@@ -1,12 +1,6 @@
-streamlit
-pandas
-openpyxl
-deep-translator
-fuzzywuzzy
-python-Levenshtein
 fastapi
 uvicorn
-pydantic
 pandas
+openpyxl
 nltk
 deep-translator
