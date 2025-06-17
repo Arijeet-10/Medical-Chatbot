@@ -4,3 +4,9 @@ openpyxl
 deep-translator
 fuzzywuzzy
 python-Levenshtein
+fastapi
+uvicorn
+pydantic
+pandas
+nltk
+deep-translator
