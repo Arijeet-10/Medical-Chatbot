@@ -2,82 +2,52 @@
 import { useState, useEffect, useRef } from "react";
 import { MessageCircle, Send, Heart, Shield, Users, Stethoscope, Mic, MicOff, Sun, Moon, Volume2 } from "lucide-react";
 
-// FIX: Define a type for a single chat message
-interface ChatMessage {
-  type: 'user' | 'bot';
-  message: string;
-}
-
-// FIX: Define types for the Web Speech API to make TypeScript happy
-// This extends the global Window interface
-declare global {
-  interface Window {
-    SpeechRecognition: any;
-    webkitSpeechRecognition: any;
-  }
-}
-
-// Interface for the speech recognition event
-interface SpeechRecognitionEvent extends Event {
-  results: SpeechRecognitionResultList;
-}
-
-// Interface for the speech recognition error event
-interface SpeechRecognitionErrorEvent extends Event {
-  error: string;
-}
-
-// Interface for the SpeechRecognition instance itself
-interface ISpeechRecognition extends EventTarget {
-  continuous: boolean;
-  interimResults: boolean;
-  maxAlternatives: number;
-  lang: string;
-  onresult: (event: SpeechRecognitionEvent) => void;
-  onerror: (event: SpeechRecognitionErrorEvent) => void;
-  onend: () => void;
-  start: () => void;
-  stop: () => void;
-}
-
-
 export default function Home() {
-  const [question, setQuestion] = useState<string>("");
-  const [loading, setLoading] = useState<boolean>(false);
-  // FIX: Provide a specific type for the chat history state
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
-  const [isListening, setIsListening] = useState<boolean>(false);
-  // FIX: Provide a specific type for the recognition state
-  const [recognition, setRecognition] = useState<ISpeechRecognition | null>(null);
-  const [selectedLanguage, setSelectedLanguage] = useState<string>("en-US");
-  const [speechSupported, setSpeechSupported] = useState<boolean>(false);
+  const [question, setQuestion] = useState("");
+  const [response, setResponse] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [chatHistory, setChatHistory] = useState([]);
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [recognition, setRecognition] = useState(null);
+  const [selectedLanguage, setSelectedLanguage] = useState("en-US");
+  const [speechSupported, setSpeechSupported] = useState(false);
+  const [toast, setToast] = useState({ show: false, title: '', description: '', type: 'info' });
 
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const chatContainerRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef(null);
+
+  // Show toast notification
+  const showToast = (title, description, type = 'info') => {
+    setToast({ show: true, title, description, type });
+    setTimeout(() => setToast({ show: false, title: '', description: '', type: 'info' }), 4000);
+  };
 
   // Initialize speech recognition
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (SpeechRecognition) {
-        // FIX: Cast the instance to our defined interface
-        const recognitionInstance: ISpeechRecognition = new SpeechRecognition();
+        const recognitionInstance = new SpeechRecognition();
         recognitionInstance.continuous = false;
         recognitionInstance.interimResults = false;
         recognitionInstance.maxAlternatives = 1;
         
-        // FIX: Type the event parameter
-        recognitionInstance.onresult = (event: SpeechRecognitionEvent) => {
+        recognitionInstance.onresult = (event) => {
           const transcript = event.results[0][0].transcript;
           setQuestion(prev => prev + (prev ? ' ' : '') + transcript);
           setIsListening(false);
         };
 
-        // FIX: Type the event parameter
-        recognitionInstance.onerror = (event: SpeechRecognitionErrorEvent) => {
+        recognitionInstance.onerror = (event) => {
           console.error('Speech recognition error:', event.error);
           setIsListening(false);
+          
+          const errorMessage = event.error === 'no-speech' ? "No speech detected. Please try again." : 
+                             event.error === 'audio-capture' ? "Microphone not available. Check permissions." :
+                             event.error === 'not-allowed' ? "Permission to use microphone was denied." :
+                             "An error occurred during speech recognition.";
+          
+          showToast("Speech Recognition Error", errorMessage, 'error');
         };
 
         recognitionInstance.onend = () => {
@@ -86,8 +56,16 @@ export default function Home() {
 
         setRecognition(recognitionInstance);
         setSpeechSupported(true);
+      } else {
+        console.warn("Speech recognition not supported in this browser.");
       }
     }
+
+    return () => {
+      if (recognition) {
+        recognition.stop();
+      }
+    };
   }, []);
 
   // Update recognition language when selectedLanguage changes
@@ -97,31 +75,34 @@ export default function Home() {
     }
   }, [selectedLanguage, recognition]);
 
-  // useEffect to auto-scroll the chat container
-  useEffect(() => {
-    if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-    }
-  }, [chatHistory]);
-
-  // useEffect to auto-resize the textarea
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      const scrollHeight = textareaRef.current.scrollHeight;
-      textareaRef.current.style.height = `${scrollHeight}px`;
-    }
-  }, [question]);
-
-
   const toggleTheme = () => {
     setIsDarkMode(!isDarkMode);
   };
 
-  const startListening = () => {
-    if (recognition && !isListening) {
-      setIsListening(true);
-      recognition.start();
+  const startListening = async () => {
+    if (!recognition) {
+      showToast("Unsupported Feature", "Speech recognition is not supported in your browser.", 'error');
+      return;
+    }
+
+    if (!isListening) {
+      try {
+        // Check for microphone permission
+        if (navigator.permissions) {
+          const permissionStatus = await navigator.permissions.query({ name: 'microphone' });
+          if (permissionStatus.state === 'denied') {
+            showToast("Permission Denied", "Microphone access was denied. Please enable it in your browser settings.", 'error');
+            return;
+          }
+        }
+        
+        setIsListening(true);
+        recognition.start();
+      } catch (error) {
+        console.error("Error starting speech recognition:", error);
+        setIsListening(false);
+        showToast("Recording Error", `Could not start recording: ${error.message}`, 'error');
+      }
     }
   };
 
@@ -132,13 +113,11 @@ export default function Home() {
     }
   };
 
-  // FIX: Type the text parameter
-  const speakText = (text: string) => {
+  const speakText = (text) => {
     if ('speechSynthesis' in window) {
-      speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = selectedLanguage;
-      utterance.rate = 0.9;
+      utterance.lang = selectedLanguage.startsWith('bn') ? 'bn-BD' : 'en-US';
+      utterance.rate = 0.8;
       speechSynthesis.speak(utterance);
     }
   };
@@ -152,7 +131,7 @@ export default function Home() {
     setLoading(true);
     
     try {
-      const res = await fetch("http://127.0.0.1:8000/ask", {
+      const res = await fetch("https://medical-chatbot-backend-15xi.onrender.com/ask", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -161,25 +140,20 @@ export default function Home() {
           question: userMessage,
         }),
       });
-
-      if (!res.ok) {
-        throw new Error(`API error: ${res.statusText}`);
-      }
-
       const data = await res.json();
       const botResponse = data.answer;
+      setResponse(botResponse);
       setChatHistory(prev => [...prev, { type: 'bot', message: botResponse }]);
     } catch (err) {
-      console.error("Failed to fetch from API:", err);
       const errorMsg = "I'm sorry, I'm having trouble connecting right now. Please try again in a moment.";
+      setResponse(errorMsg);
       setChatHistory(prev => [...prev, { type: 'bot', message: errorMsg }]);
     } finally {
       setLoading(false);
     }
   };
 
-  // FIX: Type the event parameter
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyPress = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       askQuestion();
@@ -198,11 +172,10 @@ export default function Home() {
     ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-pink-400'
     : 'bg-white border-gray-200 text-gray-800 placeholder-gray-500 focus:border-pink-400';
 
-  // The rest of your JSX remains the same, as the errors were in the logic part.
-  // The types on `chatHistory` will automatically fix the errors within the .map() function.
   return (
     <div className={`min-h-screen transition-colors duration-300 ${themeClasses}`}>
-      <header className={`${cardClasses} shadow-sm border-b transition-colors duration-300 sticky top-0 z-10`}>
+      {/* Header */}
+      <header className={`${cardClasses} shadow-sm border-b transition-colors duration-300`}>
         <div className="max-w-6xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
@@ -219,6 +192,7 @@ export default function Home() {
               </div>
             </div>
             <div className="flex items-center space-x-4">
+              {/* Language Selector */}
               <select
                 value={selectedLanguage}
                 onChange={(e) => setSelectedLanguage(e.target.value)}
@@ -229,6 +203,8 @@ export default function Home() {
                 <option value="bn-BD">বাংলা (Bangladesh)</option>
                 <option value="bn-IN">বাংলা (India)</option>
               </select>
+              
+              {/* Theme Toggle */}
               <button
                 onClick={toggleTheme}
                 className={`p-2 rounded-lg transition-colors ${
@@ -245,7 +221,9 @@ export default function Home() {
         </div>
       </header>
 
+      {/* Main Content */}
       <main className="max-w-4xl mx-auto px-6 py-8">
+        {/* Welcome Section */}
         {chatHistory.length === 0 && (
           <div className="text-center mb-8">
             <div className={`${cardClasses} rounded-2xl shadow-lg p-8 mb-6 transition-colors duration-300`}>
@@ -259,6 +237,8 @@ export default function Home() {
                 I'm here to provide information about women's cancer awareness, prevention, and support. 
                 Ask me questions using voice or text in English or Bengali, and I'll help with reliable, compassionate guidance.
               </p>
+              
+              {/* Speech Recognition Status */}
               {speechSupported && (
                 <div className={`inline-flex items-center space-x-2 px-4 py-2 rounded-full mb-6 ${
                   isDarkMode ? 'bg-green-900 text-green-300' : 'bg-green-100 text-green-700'
@@ -267,6 +247,8 @@ export default function Home() {
                   <span className="text-sm">Voice recognition enabled</span>
                 </div>
               )}
+              
+              {/* Quick Action Cards */}
               <div className="grid md:grid-cols-3 gap-4 mt-6">
                 <div className={`p-4 rounded-xl border transition-colors ${
                   isDarkMode 
@@ -300,9 +282,11 @@ export default function Home() {
           </div>
         )}
 
+        {/* Chat Interface */}
         <div className={`${cardClasses} rounded-2xl shadow-lg overflow-hidden transition-colors duration-300`}>
+          {/* Chat History */}
           {chatHistory.length > 0 && (
-            <div ref={chatContainerRef} className={`max-h-[60vh] overflow-y-auto p-6 space-y-4 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-100'}`}>
+            <div className={`max-h-96 overflow-y-auto p-6 space-y-4 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-100'}`}>
               {chatHistory.map((chat, index) => (
                 <div key={index} className={`flex ${chat.type === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-xs lg:max-w-md px-4 py-3 rounded-2xl relative group ${
@@ -316,8 +300,8 @@ export default function Home() {
                     {chat.type === 'bot' && (
                       <button
                         onClick={() => speakText(chat.message)}
-                        className={`absolute -top-1 -right-1 p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity ${
-                          isDarkMode ? 'bg-gray-600 hover:bg-gray-500' : 'bg-gray-200 hover:bg-gray-300'
+                        className={`absolute top-2 right-2 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity ${
+                          isDarkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'
                         }`}
                         title="Read aloud"
                       >
@@ -346,30 +330,34 @@ export default function Home() {
             </div>
           )}
 
+          {/* Input Section */}
           <div className="p-6">
-            <div className="flex items-end space-x-4">
+            <div className="flex space-x-4">
               <div className="flex-1 relative">
                 <textarea
                   ref={textareaRef}
-                  rows={1}
-                  className={`w-full border-2 rounded-xl p-4 pr-12 resize-none focus:outline-none transition-colors overflow-y-auto max-h-40 ${inputClasses}`}
-                  placeholder="Ask your question in English or Bengali... (Enter to send)"
+                  rows={3}
+                  className={`w-full border-2 rounded-xl p-4 pr-12 resize-none focus:outline-none transition-colors ${inputClasses}`}
+                  placeholder="Ask your question in English or Bengali... (Press Enter to send, Shift+Enter for new line)"
                   value={question}
                   onChange={(e) => setQuestion(e.target.value)}
                   onKeyPress={handleKeyPress}
                 />
                 
+                {/* Voice Input Button */}
                 {speechSupported && (
                   <button
                     onClick={isListening ? stopListening : startListening}
-                    className={`absolute right-3 top-3 p-2 rounded-lg transition-all duration-200 ${
+                    disabled={loading}
+                    className={`absolute right-3 top-3 p-2 rounded-lg transition-all duration-200 flex-shrink-0 ${
                       isListening 
-                        ? 'bg-red-500 text-white animate-pulse' 
+                        ? 'bg-red-500 text-white animate-pulse hover:bg-red-600' 
                         : isDarkMode
-                          ? 'bg-gray-600 hover:bg-gray-500 text-gray-300'
-                          : 'bg-gray-200 hover:bg-gray-300 text-gray-600'
+                          ? 'bg-gray-600 hover:bg-gray-500 text-gray-300 disabled:opacity-50'
+                          : 'bg-gray-200 hover:bg-gray-300 text-gray-600 disabled:opacity-50'
                     }`}
                     title={isListening ? 'Stop listening' : 'Start voice input'}
+                    aria-label={isListening ? 'Stop recording' : 'Start voice input'}
                   >
                     {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
                   </button>
@@ -378,7 +366,7 @@ export default function Home() {
               
               <button
                 onClick={askQuestion}
-                className="self-stretch bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white font-semibold px-6 rounded-xl transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center min-w-[100px]"
+                className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white font-semibold px-6 py-3 rounded-xl transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center min-w-[100px]"
                 disabled={loading || !question.trim()}
               >
                 {loading ? (
@@ -389,6 +377,7 @@ export default function Home() {
               </button>
             </div>
 
+            {/* Voice Status */}
             {isListening && (
               <div className="mt-3 flex items-center justify-center space-x-2 text-red-500">
                 <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
@@ -396,10 +385,39 @@ export default function Home() {
                 <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
               </div>
             )}
+
+            {/* Toast Notification */}
+            {toast.show && (
+              <div className={`mt-3 p-3 rounded-lg border transition-all duration-300 ${
+                toast.type === 'error' 
+                  ? isDarkMode 
+                    ? 'bg-red-900 border-red-700 text-red-200' 
+                    : 'bg-red-50 border-red-200 text-red-800'
+                  : isDarkMode
+                    ? 'bg-blue-900 border-blue-700 text-blue-200'
+                    : 'bg-blue-50 border-blue-200 text-blue-800'
+              }`}>
+                <div className="flex items-start space-x-2">
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold">{toast.title}</p>
+                    <p className="text-xs mt-1">{toast.description}</p>
+                  </div>
+                  <button
+                    onClick={() => setToast({ show: false, title: '', description: '', type: 'info' })}
+                    className={`text-xs px-2 py-1 rounded hover:opacity-75 ${
+                      toast.type === 'error' ? 'text-red-600' : 'text-blue-600'
+                    }`}
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            )}
             
+            {/* Disclaimer */}
             <div className={`mt-4 p-3 rounded-lg border transition-colors ${
               isDarkMode 
-                ? 'bg-amber-900/50 border-amber-700 text-amber-200' 
+                ? 'bg-amber-900 border-amber-700 text-amber-200' 
                 : 'bg-amber-50 border-amber-200 text-amber-800'
             }`}>
               <p className="text-xs">
@@ -410,9 +428,10 @@ export default function Home() {
           </div>
         </div>
 
+        {/* Footer Info */}
         <div className="mt-8 text-center">
           <div className={`${cardClasses} rounded-xl shadow-sm p-6 transition-colors duration-300`}>
-            <div className={`flex flex-wrap justify-center items-center gap-x-6 gap-y-2 text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+            <div className={`flex flex-wrap justify-center items-center space-x-6 text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
               <div className="flex items-center space-x-2">
                 <div className="w-2 h-2 bg-green-400 rounded-full"></div>
                 <span>Available 24/7</span>
