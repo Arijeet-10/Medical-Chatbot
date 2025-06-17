@@ -17,6 +17,8 @@ df.dropna(inplace=True)  # Clean NaN values
 
 stop_words = set(stopwords.words("english"))
 
+
+
 def extract_keywords(text):
     tokens = word_tokenize(text.lower())
     return [word for word in tokens if word not in stop_words and word not in string.punctuation]
@@ -50,6 +52,10 @@ app.add_middleware(
 
 class Question(BaseModel):
     question: str
+    
+@app.get("/")
+def root():
+    return {"message": "API is running"}
 
 @app.post("/ask")
 def answer_question(q: Question):
