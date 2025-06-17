@@ -50,18 +50,12 @@ def detect_language(text: str) -> str:
 # --- Step 3: FastAPI Startup Event ---
 # This function will run ONLY ONCE when the application starts.
 def setup_application():
-    print("Downloading NLTK data...")
-    nltk.download("punkt", quiet=True)
-    nltk.download("stopwords", quiet=True)
-    print("NLTK data downloaded.")
-
     print("Loading and pre-processing QA data...")
     # Load the Excel file
     df = pd.read_excel("Women_Cancer_QA.xlsx")
     df.dropna(subset=["Queries", "Answers", "Queries_Bengali", "Ans_Bengali"], inplace=True)
 
     # Pre-calculate keywords for ALL rows and store them in new columns.
-    # We use sets directly for maximum performance.
     df["en_keywords"] = df["Queries"].apply(extract_keywords)
     df["bn_keywords"] = df["Queries_Bengali"].apply(extract_keywords_bengali)
 
