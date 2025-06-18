@@ -305,9 +305,9 @@ export default function Home() {
                 onChange={(e) => setSelectedLanguage(e.target.value)}
                 className={`px-3 py-1 rounded-lg text-sm border transition-colors ${inputClasses}`}
               >
-                <option value="en-US">English (US)</option>
+                
                 <option value="en-IN">English (India)</option>
-                <option value="bn-BD">বাংলা (Bangladesh)</option>
+                
                 <option value="bn-IN">বাংলা (India)</option>
               </select>
 
