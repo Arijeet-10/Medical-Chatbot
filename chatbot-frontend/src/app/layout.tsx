@@ -17,11 +17,11 @@ export const metadata: Metadata = {
   description: "Ask health-related questions in English or Bengali and get AI-powered answers instantly.",
   authors: [{ name: "Arijeet Das" }],
   creator: "Arijeet Das",
-  metadataBase: new URL("https://chatbot-frontend.onrender.com"), // Update this to your domain
+  metadataBase: new URL("https://medical-chatbot-frontend-static.onrender.com"), // Update this to your domain
   openGraph: {
     title: "Medical Chatbot",
     description: "Your personal AI health assistant supporting English & Bengali.",
-    url: "https://chatbot-frontend.onrender.com",
+    url: "https://medical-chatbot-frontend-static.onrender.com",
     siteName: "Medical Chatbot",
     images: [
       {
