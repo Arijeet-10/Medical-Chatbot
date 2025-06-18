@@ -59,7 +59,7 @@ export default function Home() {
         recognitionInstance.interimResults = false;
         recognitionInstance.maxAlternatives = 1;
 
-        recognitionInstance.onresult = (event: SpeechRecognitionEvent) => {
+        recognitionInstance.onresult = (event: any) => {
           const transcript = event.results[0][0].transcript;
           setQuestion((prev) => prev + (prev ? " " : "") + transcript);
           setIsListening(false);
