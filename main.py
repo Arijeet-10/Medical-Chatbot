@@ -11,8 +11,8 @@ import uvicorn
 import os
 
 
-nltk_path = os.path.join(os.path.dirname(__file__), "nltk_data")
-nltk.data.path.append(nltk_path)
+# nltk_path = os.path.join(os.path.dirname(__file__), "nltk_data")
+# nltk.data.path.append(nltk_path)
 
 # --- Step 1: Centralized App State ---
 app_state = {}
