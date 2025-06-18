@@ -10,10 +10,6 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import os
 
-nltk.download("punkt")
-nltk.download("stopwords")
-
-
 
 nltk_path = os.path.join(os.path.dirname(__file__), "nltk_data")
 nltk.data.path.append(nltk_path)

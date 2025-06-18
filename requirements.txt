@@ -1,6 +1,7 @@
 fastapi
-uvicorn[standard]
+uvicorn
+gunicorn
 pandas
 nltk
-openpyxl
 deep-translator
+openpyxl  # Required by pandas to read .xlsx files
