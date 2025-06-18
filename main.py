@@ -137,6 +137,9 @@ def answer_question(q: Question):
 # --- Step 6: Local Development Runner ---
 # This block is for local development (e.g., running `python main.py`)
 if __name__ == "__main__":
+   # Render sets the PORT environment variable.
     port = int(os.environ.get("PORT", 8000))
-    # Uvicorn will automatically run the `setup_application` function on startup.
-    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
+    
+    # Use 'workers=4' for production. This is similar to gunicorn's '-w 4'.
+    # REMOVE `reload=True` as it is not for production.
+    uvicorn.run("main:app", host="0.0.0.0", port=port, workers=4)
