@@ -12,6 +12,12 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import os
 
+nltk.download('punkt_tab')
+nltk.download('punkt')
+nltk.download('stopwords')
+nltk.download('punkt_tab') # Download the punkt_tab data
+nltk.download('wordnet')
+
 # --- CONFIGURE NLTK DATA PATH ---
 # Point NLTK to the directory where our build script downloaded the data.
 # This ensures it finds the data when the application starts.
