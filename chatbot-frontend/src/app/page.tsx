@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, KeyboardEvent } from "react"; // Added KeyboardEvent
 import {
   MessageCircle,
   Send,
@@ -14,27 +14,70 @@ import {
   Volume2,
 } from "lucide-react";
 
+// --- TYPE DEFINITIONS ---
+// Define the shape of a chat message object
+interface ChatMessage {
+  type: "user" | "bot";
+  message: string;
+}
+
+// Define the shape of the Toast state
+type ToastType = "info" | "success" | "error";
+interface ToastState {
+  show: boolean;
+  title: string;
+  description: string;
+  type: ToastType;
+}
+
+// Define a comprehensive interface for the SpeechRecognition object
+interface CustomSpeechRecognition extends EventTarget {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  maxAlternatives: number;
+  onresult: (event: SpeechRecognitionEvent) => void;
+  onerror: (event: SpeechRecognitionErrorEvent) => void;
+  onend: () => void;
+  start: () => void;
+  stop: () => void;
+}
+
+// Define interfaces for the speech recognition events
+interface SpeechRecognitionEvent extends Event {
+  results: {
+    [index: number]: {
+      [index: number]: {
+        transcript: string;
+        confidence: number;
+      };
+    };
+  };
+}
+interface SpeechRecognitionErrorEvent extends Event {
+  error: string;
+}
+// --- END TYPE DEFINITIONS ---
+
 export default function Home() {
   const [question, setQuestion] = useState("");
   const [response, setResponse] = useState("");
   const [loading, setLoading] = useState(false);
-  const [chatHistory, setChatHistory] = useState([]);
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]); // Typed state
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isListening, setIsListening] = useState(false);
-  const [recognition, setRecognition] = useState(null);
+  const [recognition, setRecognition] =
+    useState<CustomSpeechRecognition | null>(null); // Typed state
   const [selectedLanguage, setSelectedLanguage] = useState("en-US");
   const [speechSupported, setSpeechSupported] = useState(false);
-  const [toast, setToast] = useState({
+  const [toast, setToast] = useState<ToastState>({ // Typed state
     show: false,
     title: "",
     description: "",
     type: "info",
   });
 
-  const textareaRef = useRef(null);
-
-  // Show toast notification
-  type ToastType = "info" | "success" | "error";
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const showToast = (
     title: string,
@@ -48,24 +91,25 @@ export default function Home() {
     );
   };
 
-  // Initialize speech recognition
   useEffect(() => {
     if (typeof window !== "undefined") {
       const SpeechRecognition =
-        window.SpeechRecognition || window.webkitSpeechRecognition;
+        (window as any).SpeechRecognition ||
+        (window as any).webkitSpeechRecognition;
       if (SpeechRecognition) {
-        const recognitionInstance = new SpeechRecognition();
+        const recognitionInstance: CustomSpeechRecognition =
+          new SpeechRecognition();
         recognitionInstance.continuous = false;
         recognitionInstance.interimResults = false;
         recognitionInstance.maxAlternatives = 1;
 
-        recognitionInstance.onresult = (event: any) => {
+        recognitionInstance.onresult = (event: SpeechRecognitionEvent) => { // Typed event
           const transcript = event.results[0][0].transcript;
           setQuestion((prev) => prev + (prev ? " " : "") + transcript);
           setIsListening(false);
         };
 
-        recognitionInstance.onerror = (event) => {
+        recognitionInstance.onerror = (event: SpeechRecognitionErrorEvent) => { // Typed event
           console.error("Speech recognition error:", event.error);
           setIsListening(false);
 
@@ -97,9 +141,9 @@ export default function Home() {
         recognition.stop();
       }
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Note: Added eslint-disable to manage dependency array warning if it appears
 
-  // Update recognition language when selectedLanguage changes
   useEffect(() => {
     if (recognition) {
       recognition.lang = selectedLanguage;
@@ -122,10 +166,9 @@ export default function Home() {
 
     if (!isListening) {
       try {
-        // Check for microphone permission
         if (navigator.permissions) {
           const permissionStatus = await navigator.permissions.query({
-            name: "microphone",
+            name: "microphone" as PermissionName,
           });
           if (permissionStatus.state === "denied") {
             showToast(
@@ -139,14 +182,14 @@ export default function Home() {
 
         setIsListening(true);
         recognition.start();
-      } catch (error) {
+      } catch (error) { // Typed error handling
         console.error("Error starting speech recognition:", error);
         setIsListening(false);
-        showToast(
-          "Recording Error",
-          `Could not start recording: ${error.message}`,
-          "error"
-        );
+        let errorMessage = "Could not start recording.";
+        if (error instanceof Error) {
+            errorMessage = `Could not start recording: ${error.message}`;
+        }
+        showToast("Recording Error", errorMessage, "error");
       }
     }
   };
@@ -158,7 +201,7 @@ export default function Home() {
     }
   };
 
-  const speakText = (text) => {
+  const speakText = (text: string) => { // Typed parameter
     if ("speechSynthesis" in window) {
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = selectedLanguage.startsWith("bn") ? "bn-BD" : "en-US";
@@ -179,7 +222,6 @@ export default function Home() {
       const res = await fetch(
         "https://medical-chatbot-backend-15xi.onrender.com/ask",
         {
-          // const res = await fetch("http://localhost:10000/ask", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -206,7 +248,7 @@ export default function Home() {
     }
   };
 
-  const handleKeyPress = (e) => {
+  const handleKeyPress = (e: KeyboardEvent<HTMLTextAreaElement>) => { // Typed event
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       askQuestion();
