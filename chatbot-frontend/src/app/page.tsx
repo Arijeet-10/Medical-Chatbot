@@ -1,6 +1,18 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { MessageCircle, Send, Heart, Shield, Users, Stethoscope, Mic, MicOff, Sun, Moon, Volume2 } from "lucide-react";
+import {
+  MessageCircle,
+  Send,
+  Heart,
+  Shield,
+  Users,
+  Stethoscope,
+  Mic,
+  MicOff,
+  Sun,
+  Moon,
+  Volume2,
+} from "lucide-react";
 
 export default function Home() {
   const [question, setQuestion] = useState("");
@@ -12,44 +24,61 @@ export default function Home() {
   const [recognition, setRecognition] = useState(null);
   const [selectedLanguage, setSelectedLanguage] = useState("en-US");
   const [speechSupported, setSpeechSupported] = useState(false);
-  const [toast, setToast] = useState({ show: false, title: '', description: '', type: 'info' });
+  const [toast, setToast] = useState({
+    show: false,
+    title: "",
+    description: "",
+    type: "info",
+  });
 
   const textareaRef = useRef(null);
 
   // Show toast notification
-  type ToastType = 'info' | 'success' | 'error';
+  type ToastType = "info" | "success" | "error";
 
-  const showToast = (title: string, description: string, type: ToastType = 'info') => {
+  const showToast = (
+    title: string,
+    description: string,
+    type: ToastType = "info"
+  ) => {
     setToast({ show: true, title, description, type });
-    setTimeout(() => setToast({ show: false, title: '', description: '', type: 'info' }), 4000);
+    setTimeout(
+      () => setToast({ show: false, title: "", description: "", type: "info" }),
+      4000
+    );
   };
 
   // Initialize speech recognition
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (typeof window !== "undefined") {
+      const SpeechRecognition =
+        window.SpeechRecognition || window.webkitSpeechRecognition;
       if (SpeechRecognition) {
         const recognitionInstance = new SpeechRecognition();
         recognitionInstance.continuous = false;
         recognitionInstance.interimResults = false;
         recognitionInstance.maxAlternatives = 1;
-        
-        recognitionInstance.onresult = (event) => {
+
+        recognitionInstance.onresult = (event: SpeechRecognitionEvent) => {
           const transcript = event.results[0][0].transcript;
-          setQuestion(prev => prev + (prev ? ' ' : '') + transcript);
+          setQuestion((prev) => prev + (prev ? " " : "") + transcript);
           setIsListening(false);
         };
 
         recognitionInstance.onerror = (event) => {
-          console.error('Speech recognition error:', event.error);
+          console.error("Speech recognition error:", event.error);
           setIsListening(false);
-          
-          const errorMessage = event.error === 'no-speech' ? "No speech detected. Please try again." : 
-                             event.error === 'audio-capture' ? "Microphone not available. Check permissions." :
-                             event.error === 'not-allowed' ? "Permission to use microphone was denied." :
-                             "An error occurred during speech recognition.";
-          
-          showToast("Speech Recognition Error", errorMessage, 'error');
+
+          const errorMessage =
+            event.error === "no-speech"
+              ? "No speech detected. Please try again."
+              : event.error === "audio-capture"
+              ? "Microphone not available. Check permissions."
+              : event.error === "not-allowed"
+              ? "Permission to use microphone was denied."
+              : "An error occurred during speech recognition.";
+
+          showToast("Speech Recognition Error", errorMessage, "error");
         };
 
         recognitionInstance.onend = () => {
@@ -83,7 +112,11 @@ export default function Home() {
 
   const startListening = async () => {
     if (!recognition) {
-      showToast("Unsupported Feature", "Speech recognition is not supported in your browser.", 'error');
+      showToast(
+        "Unsupported Feature",
+        "Speech recognition is not supported in your browser.",
+        "error"
+      );
       return;
     }
 
@@ -91,19 +124,29 @@ export default function Home() {
       try {
         // Check for microphone permission
         if (navigator.permissions) {
-          const permissionStatus = await navigator.permissions.query({ name: 'microphone' });
-          if (permissionStatus.state === 'denied') {
-            showToast("Permission Denied", "Microphone access was denied. Please enable it in your browser settings.", 'error');
+          const permissionStatus = await navigator.permissions.query({
+            name: "microphone",
+          });
+          if (permissionStatus.state === "denied") {
+            showToast(
+              "Permission Denied",
+              "Microphone access was denied. Please enable it in your browser settings.",
+              "error"
+            );
             return;
           }
         }
-        
+
         setIsListening(true);
         recognition.start();
       } catch (error) {
         console.error("Error starting speech recognition:", error);
         setIsListening(false);
-        showToast("Recording Error", `Could not start recording: ${error.message}`, 'error');
+        showToast(
+          "Recording Error",
+          `Could not start recording: ${error.message}`,
+          "error"
+        );
       }
     }
   };
@@ -116,9 +159,9 @@ export default function Home() {
   };
 
   const speakText = (text) => {
-    if ('speechSynthesis' in window) {
+    if ("speechSynthesis" in window) {
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = selectedLanguage.startsWith('bn') ? 'bn-BD' : 'en-US';
+      utterance.lang = selectedLanguage.startsWith("bn") ? "bn-BD" : "en-US";
       utterance.rate = 0.8;
       speechSynthesis.speak(utterance);
     }
@@ -126,59 +169,70 @@ export default function Home() {
 
   const askQuestion = async () => {
     if (!question.trim()) return;
-    
+
     const userMessage = question;
-    setChatHistory(prev => [...prev, { type: 'user', message: userMessage }]);
+    setChatHistory((prev) => [...prev, { type: "user", message: userMessage }]);
     setQuestion("");
     setLoading(true);
-    
+
     try {
-      const res = await fetch("https://medical-chatbot-backend-15xi.onrender.com/ask", {
-      // const res = await fetch("http://localhost:10000/ask", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          question: userMessage,
-        }),
-      });
+      const res = await fetch(
+        "https://medical-chatbot-backend-15xi.onrender.com/ask",
+        {
+          // const res = await fetch("http://localhost:10000/ask", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            question: userMessage,
+          }),
+        }
+      );
       const data = await res.json();
       const botResponse = data.answer;
       setResponse(botResponse);
-      setChatHistory(prev => [...prev, { type: 'bot', message: botResponse }]);
+      setChatHistory((prev) => [
+        ...prev,
+        { type: "bot", message: botResponse },
+      ]);
     } catch (err) {
-      const errorMsg = "I'm sorry, I'm having trouble connecting right now. Please try again in a moment.";
+      const errorMsg =
+        "I'm sorry, I'm having trouble connecting right now. Please try again in a moment.";
       setResponse(errorMsg);
-      setChatHistory(prev => [...prev, { type: 'bot', message: errorMsg }]);
+      setChatHistory((prev) => [...prev, { type: "bot", message: errorMsg }]);
     } finally {
       setLoading(false);
     }
   };
 
   const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       askQuestion();
     }
   };
 
-  const themeClasses = isDarkMode 
-    ? 'bg-gradient-to-br from-gray-900 via-purple-900 to-pink-900 text-white'
-    : 'bg-gradient-to-br from-rose-50 via-pink-50 to-purple-50 text-gray-800';
-    
-  const cardClasses = isDarkMode 
-    ? 'bg-gray-800 border-gray-700'
-    : 'bg-white border-gray-100';
-    
+  const themeClasses = isDarkMode
+    ? "bg-gradient-to-br from-gray-900 via-purple-900 to-pink-900 text-white"
+    : "bg-gradient-to-br from-rose-50 via-pink-50 to-purple-50 text-gray-800";
+
+  const cardClasses = isDarkMode
+    ? "bg-gray-800 border-gray-700"
+    : "bg-white border-gray-100";
+
   const inputClasses = isDarkMode
-    ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-pink-400'
-    : 'bg-white border-gray-200 text-gray-800 placeholder-gray-500 focus:border-pink-400';
+    ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-pink-400"
+    : "bg-white border-gray-200 text-gray-800 placeholder-gray-500 focus:border-pink-400";
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 ${themeClasses}`}>
+    <div
+      className={`min-h-screen transition-colors duration-300 ${themeClasses}`}
+    >
       {/* Header */}
-      <header className={`${cardClasses} shadow-sm border-b transition-colors duration-300`}>
+      <header
+        className={`${cardClasses} shadow-sm border-b transition-colors duration-300`}
+      >
         <div className="max-w-6xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
@@ -186,10 +240,18 @@ export default function Home() {
                 <Heart className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>
+                <h1
+                  className={`text-xl font-bold ${
+                    isDarkMode ? "text-white" : "text-gray-800"
+                  }`}
+                >
                   Women's Health Assistant
                 </h1>
-                <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                <p
+                  className={`text-sm ${
+                    isDarkMode ? "text-gray-300" : "text-gray-600"
+                  }`}
+                >
                   Cancer Awareness & Support
                 </p>
               </div>
@@ -206,18 +268,22 @@ export default function Home() {
                 <option value="bn-BD">বাংলা (Bangladesh)</option>
                 <option value="bn-IN">বাংলা (India)</option>
               </select>
-              
+
               {/* Theme Toggle */}
               <button
                 onClick={toggleTheme}
                 className={`p-2 rounded-lg transition-colors ${
-                  isDarkMode 
-                    ? 'bg-gray-700 hover:bg-gray-600 text-yellow-400' 
-                    : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                  isDarkMode
+                    ? "bg-gray-700 hover:bg-gray-600 text-yellow-400"
+                    : "bg-gray-100 hover:bg-gray-200 text-gray-700"
                 }`}
                 title="Toggle theme"
               >
-                {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                {isDarkMode ? (
+                  <Sun className="w-5 h-5" />
+                ) : (
+                  <Moon className="w-5 h-5" />
+                )}
               </button>
             </div>
           </div>
@@ -229,56 +295,118 @@ export default function Home() {
         {/* Welcome Section */}
         {chatHistory.length === 0 && (
           <div className="text-center mb-8">
-            <div className={`${cardClasses} rounded-2xl shadow-lg p-8 mb-6 transition-colors duration-300`}>
-              <div className={`bg-gradient-to-r from-pink-100 to-purple-100 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4 ${isDarkMode ? 'opacity-90' : ''}`}>
+            <div
+              className={`${cardClasses} rounded-2xl shadow-lg p-8 mb-6 transition-colors duration-300`}
+            >
+              <div
+                className={`bg-gradient-to-r from-pink-100 to-purple-100 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4 ${
+                  isDarkMode ? "opacity-90" : ""
+                }`}
+              >
                 <MessageCircle className="w-10 h-10 text-pink-600" />
               </div>
-              <h2 className={`text-2xl font-bold mb-3 ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>
+              <h2
+                className={`text-2xl font-bold mb-3 ${
+                  isDarkMode ? "text-white" : "text-gray-800"
+                }`}
+              >
                 Welcome to Your Health Assistant
               </h2>
-              <p className={`mb-6 max-w-2xl mx-auto ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                I'm here to provide information about women's cancer awareness, prevention, and support. 
-                Ask me questions using voice or text in English or Bengali, and I'll help with reliable, compassionate guidance.
+              <p
+                className={`mb-6 max-w-2xl mx-auto ${
+                  isDarkMode ? "text-gray-300" : "text-gray-600"
+                }`}
+              >
+                I'm here to provide information about women's cancer awareness,
+                prevention, and support. Ask me questions using voice or text in
+                English or Bengali, and I'll help with reliable, compassionate
+                guidance.
               </p>
-              
+
               {/* Speech Recognition Status */}
               {speechSupported && (
-                <div className={`inline-flex items-center space-x-2 px-4 py-2 rounded-full mb-6 ${
-                  isDarkMode ? 'bg-green-900 text-green-300' : 'bg-green-100 text-green-700'
-                }`}>
+                <div
+                  className={`inline-flex items-center space-x-2 px-4 py-2 rounded-full mb-6 ${
+                    isDarkMode
+                      ? "bg-green-900 text-green-300"
+                      : "bg-green-100 text-green-700"
+                  }`}
+                >
                   <Mic className="w-4 h-4" />
                   <span className="text-sm">Voice recognition enabled</span>
                 </div>
               )}
-              
+
               {/* Quick Action Cards */}
               <div className="grid md:grid-cols-3 gap-4 mt-6">
-                <div className={`p-4 rounded-xl border transition-colors ${
-                  isDarkMode 
-                    ? 'bg-gradient-to-br from-pink-900 to-pink-800 border-pink-700' 
-                    : 'bg-gradient-to-br from-pink-50 to-pink-100 border-pink-200'
-                }`}>
+                <div
+                  className={`p-4 rounded-xl border transition-colors ${
+                    isDarkMode
+                      ? "bg-gradient-to-br from-pink-900 to-pink-800 border-pink-700"
+                      : "bg-gradient-to-br from-pink-50 to-pink-100 border-pink-200"
+                  }`}
+                >
                   <Heart className="w-6 h-6 text-pink-600 mb-2" />
-                  <h3 className={`font-semibold text-sm ${isDarkMode ? 'text-pink-200' : 'text-gray-800'}`}>Prevention Tips</h3>
-                  <p className={`text-xs ${isDarkMode ? 'text-pink-300' : 'text-gray-600'}`}>Learn about early detection</p>
+                  <h3
+                    className={`font-semibold text-sm ${
+                      isDarkMode ? "text-pink-200" : "text-gray-800"
+                    }`}
+                  >
+                    Prevention Tips
+                  </h3>
+                  <p
+                    className={`text-xs ${
+                      isDarkMode ? "text-pink-300" : "text-gray-600"
+                    }`}
+                  >
+                    Learn about early detection
+                  </p>
                 </div>
-                <div className={`p-4 rounded-xl border transition-colors ${
-                  isDarkMode 
-                    ? 'bg-gradient-to-br from-purple-900 to-purple-800 border-purple-700' 
-                    : 'bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200'
-                }`}>
+                <div
+                  className={`p-4 rounded-xl border transition-colors ${
+                    isDarkMode
+                      ? "bg-gradient-to-br from-purple-900 to-purple-800 border-purple-700"
+                      : "bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200"
+                  }`}
+                >
                   <Users className="w-6 h-6 text-purple-600 mb-2" />
-                  <h3 className={`font-semibold text-sm ${isDarkMode ? 'text-purple-200' : 'text-gray-800'}`}>Support Resources</h3>
-                  <p className={`text-xs ${isDarkMode ? 'text-purple-300' : 'text-gray-600'}`}>Find help and community</p>
+                  <h3
+                    className={`font-semibold text-sm ${
+                      isDarkMode ? "text-purple-200" : "text-gray-800"
+                    }`}
+                  >
+                    Support Resources
+                  </h3>
+                  <p
+                    className={`text-xs ${
+                      isDarkMode ? "text-purple-300" : "text-gray-600"
+                    }`}
+                  >
+                    Find help and community
+                  </p>
                 </div>
-                <div className={`p-4 rounded-xl border transition-colors ${
-                  isDarkMode 
-                    ? 'bg-gradient-to-br from-rose-900 to-rose-800 border-rose-700' 
-                    : 'bg-gradient-to-br from-rose-50 to-rose-100 border-rose-200'
-                }`}>
+                <div
+                  className={`p-4 rounded-xl border transition-colors ${
+                    isDarkMode
+                      ? "bg-gradient-to-br from-rose-900 to-rose-800 border-rose-700"
+                      : "bg-gradient-to-br from-rose-50 to-rose-100 border-rose-200"
+                  }`}
+                >
                   <Shield className="w-6 h-6 text-rose-600 mb-2" />
-                  <h3 className={`font-semibold text-sm ${isDarkMode ? 'text-rose-200' : 'text-gray-800'}`}>Risk Assessment</h3>
-                  <p className={`text-xs ${isDarkMode ? 'text-rose-300' : 'text-gray-600'}`}>Understand your health</p>
+                  <h3
+                    className={`font-semibold text-sm ${
+                      isDarkMode ? "text-rose-200" : "text-gray-800"
+                    }`}
+                  >
+                    Risk Assessment
+                  </h3>
+                  <p
+                    className={`text-xs ${
+                      isDarkMode ? "text-rose-300" : "text-gray-600"
+                    }`}
+                  >
+                    Understand your health
+                  </p>
                 </div>
               </div>
             </div>
@@ -286,25 +414,40 @@ export default function Home() {
         )}
 
         {/* Chat Interface */}
-        <div className={`${cardClasses} rounded-2xl shadow-lg overflow-hidden transition-colors duration-300`}>
+        <div
+          className={`${cardClasses} rounded-2xl shadow-lg overflow-hidden transition-colors duration-300`}
+        >
           {/* Chat History */}
           {chatHistory.length > 0 && (
-            <div className={`max-h-96 overflow-y-auto p-6 space-y-4 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-100'}`}>
+            <div
+              className={`max-h-96 overflow-y-auto p-6 space-y-4 border-b ${
+                isDarkMode ? "border-gray-700" : "border-gray-100"
+              }`}
+            >
               {chatHistory.map((chat, index) => (
-                <div key={index} className={`flex ${chat.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-xs lg:max-w-md px-4 py-3 rounded-2xl relative group ${
-                    chat.type === 'user' 
-                      ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white' 
-                      : isDarkMode 
-                        ? 'bg-gray-700 text-gray-200' 
-                        : 'bg-gray-100 text-gray-800'
-                  }`}>
-                    <p className="text-sm whitespace-pre-line">{chat.message}</p>
-                    {chat.type === 'bot' && (
+                <div
+                  key={index}
+                  className={`flex ${
+                    chat.type === "user" ? "justify-end" : "justify-start"
+                  }`}
+                >
+                  <div
+                    className={`max-w-xs lg:max-w-md px-4 py-3 rounded-2xl relative group ${
+                      chat.type === "user"
+                        ? "bg-gradient-to-r from-pink-500 to-purple-600 text-white"
+                        : isDarkMode
+                        ? "bg-gray-700 text-gray-200"
+                        : "bg-gray-100 text-gray-800"
+                    }`}
+                  >
+                    <p className="text-sm whitespace-pre-line">
+                      {chat.message}
+                    </p>
+                    {chat.type === "bot" && (
                       <button
                         onClick={() => speakText(chat.message)}
                         className={`absolute top-2 right-2 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity ${
-                          isDarkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'
+                          isDarkMode ? "hover:bg-gray-600" : "hover:bg-gray-200"
                         }`}
                         title="Read aloud"
                       >
@@ -316,16 +459,32 @@ export default function Home() {
               ))}
               {loading && (
                 <div className="flex justify-start">
-                  <div className={`px-4 py-3 rounded-2xl max-w-xs ${
-                    isDarkMode ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-800'
-                  }`}>
+                  <div
+                    className={`px-4 py-3 rounded-2xl max-w-xs ${
+                      isDarkMode
+                        ? "bg-gray-700 text-gray-200"
+                        : "bg-gray-100 text-gray-800"
+                    }`}
+                  >
                     <div className="flex items-center space-x-2">
                       <div className="flex space-x-1">
                         <div className="w-2 h-2 bg-pink-400 rounded-full animate-bounce"></div>
-                        <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                        <div className="w-2 h-2 bg-rose-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                        <div
+                          className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"
+                          style={{ animationDelay: "0.1s" }}
+                        ></div>
+                        <div
+                          className="w-2 h-2 bg-rose-400 rounded-full animate-bounce"
+                          style={{ animationDelay: "0.2s" }}
+                        ></div>
                       </div>
-                      <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Thinking...</span>
+                      <span
+                        className={`text-sm ${
+                          isDarkMode ? "text-gray-300" : "text-gray-600"
+                        }`}
+                      >
+                        Thinking...
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -346,27 +505,33 @@ export default function Home() {
                   onChange={(e) => setQuestion(e.target.value)}
                   onKeyPress={handleKeyPress}
                 />
-                
+
                 {/* Voice Input Button */}
                 {speechSupported && (
                   <button
                     onClick={isListening ? stopListening : startListening}
                     disabled={loading}
                     className={`absolute right-3 top-3 p-2 rounded-lg transition-all duration-200 flex-shrink-0 ${
-                      isListening 
-                        ? 'bg-red-500 text-white animate-pulse hover:bg-red-600' 
+                      isListening
+                        ? "bg-red-500 text-white animate-pulse hover:bg-red-600"
                         : isDarkMode
-                          ? 'bg-gray-600 hover:bg-gray-500 text-gray-300 disabled:opacity-50'
-                          : 'bg-gray-200 hover:bg-gray-300 text-gray-600 disabled:opacity-50'
+                        ? "bg-gray-600 hover:bg-gray-500 text-gray-300 disabled:opacity-50"
+                        : "bg-gray-200 hover:bg-gray-300 text-gray-600 disabled:opacity-50"
                     }`}
-                    title={isListening ? 'Stop listening' : 'Start voice input'}
-                    aria-label={isListening ? 'Stop recording' : 'Start voice input'}
+                    title={isListening ? "Stop listening" : "Start voice input"}
+                    aria-label={
+                      isListening ? "Stop recording" : "Start voice input"
+                    }
                   >
-                    {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                    {isListening ? (
+                      <MicOff className="w-4 h-4" />
+                    ) : (
+                      <Mic className="w-4 h-4" />
+                    )}
                   </button>
                 )}
               </div>
-              
+
               <button
                 onClick={askQuestion}
                 className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white font-semibold px-6 py-3 rounded-xl transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center min-w-[100px]"
@@ -391,24 +556,33 @@ export default function Home() {
 
             {/* Toast Notification */}
             {toast.show && (
-              <div className={`mt-3 p-3 rounded-lg border transition-all duration-300 ${
-                toast.type === 'error' 
-                  ? isDarkMode 
-                    ? 'bg-red-900 border-red-700 text-red-200' 
-                    : 'bg-red-50 border-red-200 text-red-800'
-                  : isDarkMode
-                    ? 'bg-blue-900 border-blue-700 text-blue-200'
-                    : 'bg-blue-50 border-blue-200 text-blue-800'
-              }`}>
+              <div
+                className={`mt-3 p-3 rounded-lg border transition-all duration-300 ${
+                  toast.type === "error"
+                    ? isDarkMode
+                      ? "bg-red-900 border-red-700 text-red-200"
+                      : "bg-red-50 border-red-200 text-red-800"
+                    : isDarkMode
+                    ? "bg-blue-900 border-blue-700 text-blue-200"
+                    : "bg-blue-50 border-blue-200 text-blue-800"
+                }`}
+              >
                 <div className="flex items-start space-x-2">
                   <div className="flex-1">
                     <p className="text-sm font-semibold">{toast.title}</p>
                     <p className="text-xs mt-1">{toast.description}</p>
                   </div>
                   <button
-                    onClick={() => setToast({ show: false, title: '', description: '', type: 'info' })}
+                    onClick={() =>
+                      setToast({
+                        show: false,
+                        title: "",
+                        description: "",
+                        type: "info",
+                      })
+                    }
                     className={`text-xs px-2 py-1 rounded hover:opacity-75 ${
-                      toast.type === 'error' ? 'text-red-600' : 'text-blue-600'
+                      toast.type === "error" ? "text-red-600" : "text-blue-600"
                     }`}
                   >
                     ✕
@@ -416,16 +590,20 @@ export default function Home() {
                 </div>
               </div>
             )}
-            
+
             {/* Disclaimer */}
-            <div className={`mt-4 p-3 rounded-lg border transition-colors ${
-              isDarkMode 
-                ? 'bg-amber-900 border-amber-700 text-amber-200' 
-                : 'bg-amber-50 border-amber-200 text-amber-800'
-            }`}>
+            <div
+              className={`mt-4 p-3 rounded-lg border transition-colors ${
+                isDarkMode
+                  ? "bg-amber-900 border-amber-700 text-amber-200"
+                  : "bg-amber-50 border-amber-200 text-amber-800"
+              }`}
+            >
               <p className="text-xs">
-                <strong>Medical Disclaimer:</strong> This chatbot provides general information only and is not a substitute for professional medical advice. 
-                Always consult with healthcare professionals for medical concerns.
+                <strong>Medical Disclaimer:</strong> This chatbot provides
+                general information only and is not a substitute for
+                professional medical advice. Always consult with healthcare
+                professionals for medical concerns.
               </p>
             </div>
           </div>
@@ -433,8 +611,14 @@ export default function Home() {
 
         {/* Footer Info */}
         <div className="mt-8 text-center">
-          <div className={`${cardClasses} rounded-xl shadow-sm p-6 transition-colors duration-300`}>
-            <div className={`flex flex-wrap justify-center items-center space-x-6 text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+          <div
+            className={`${cardClasses} rounded-xl shadow-sm p-6 transition-colors duration-300`}
+          >
+            <div
+              className={`flex flex-wrap justify-center items-center space-x-6 text-sm ${
+                isDarkMode ? "text-gray-300" : "text-gray-600"
+              }`}
+            >
               <div className="flex items-center space-x-2">
                 <div className="w-2 h-2 bg-green-400 rounded-full"></div>
                 <span>Available 24/7</span>
@@ -448,8 +632,13 @@ export default function Home() {
                 <span>Evidence-Based Information</span>
               </div>
             </div>
-            <p className={`text-xs mt-3 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-              Empowering women with knowledge and support for better health outcomes
+            <p
+              className={`text-xs mt-3 ${
+                isDarkMode ? "text-gray-400" : "text-gray-500"
+              }`}
+            >
+              Empowering women with knowledge and support for better health
+              outcomes
             </p>
           </div>
         </div>
