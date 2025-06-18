@@ -17,7 +17,9 @@ export default function Home() {
   const textareaRef = useRef(null);
 
   // Show toast notification
-  const showToast = (title, description, type = 'info') => {
+  type ToastType = 'info' | 'success' | 'error';
+
+  const showToast = (title: string, description: string, type: ToastType = 'info') => {
     setToast({ show: true, title, description, type });
     setTimeout(() => setToast({ show: false, title: '', description: '', type: 'info' }), 4000);
   };
