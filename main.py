@@ -11,6 +11,10 @@ import uvicorn
 import os
 
 
+nltk.download("punkt", download_dir="nltk_data")
+nltk.download("stopwords", download_dir="nltk_data")
+
+
 nltk_path = os.path.join(os.path.dirname(__file__), "nltk_data")
 nltk.data.path.append(nltk_path)
 
@@ -59,8 +63,10 @@ def setup_application():
     # Use the `global` keyword to modify the `stop_words` set we defined outside.
     # This is the correct place to load file-based data.
     global stop_words
+    print("NLTK data path:", nltk.data.path)
     print("Loading NLTK stopwords...")
     stop_words = set(stopwords.words("english"))
+
     print("Stopwords loaded successfully.")
 
     print("Loading and pre-processing QA data...")
