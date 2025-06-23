@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef, KeyboardEvent } from "react"; // Added KeyboardEvent
+import { useState, useEffect, useRef, KeyboardEvent } from "react";
 import {
   MessageCircle,
   Send,
@@ -12,16 +12,16 @@ import {
   Sun,
   Moon,
   Volume2,
+  Languages,
 } from "lucide-react";
 
 // --- TYPE DEFINITIONS ---
-// Define the shape of a chat message object
 interface ChatMessage {
   type: "user" | "bot";
   message: string;
+  language?: "en" | "bn"; // Track message language
 }
 
-// Define the shape of the Toast state
 type ToastType = "info" | "success" | "error";
 interface ToastState {
   show: boolean;
@@ -30,7 +30,6 @@ interface ToastState {
   type: ToastType;
 }
 
-// Define a comprehensive interface for the SpeechRecognition object
 interface CustomSpeechRecognition extends EventTarget {
   lang: string;
   continuous: boolean;
@@ -43,7 +42,6 @@ interface CustomSpeechRecognition extends EventTarget {
   stop: () => void;
 }
 
-// Define interfaces for the speech recognition events
 interface SpeechRecognitionEvent extends Event {
   results: {
     [index: number]: {
@@ -63,14 +61,14 @@ export default function Home() {
   const [question, setQuestion] = useState("");
   const [response, setResponse] = useState("");
   const [loading, setLoading] = useState(false);
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]); // Typed state
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isListening, setIsListening] = useState(false);
-  const [recognition, setRecognition] =
-    useState<CustomSpeechRecognition | null>(null); // Typed state
+  const [recognition, setRecognition] = useState<CustomSpeechRecognition | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState("en-US");
   const [speechSupported, setSpeechSupported] = useState(false);
-  const [toast, setToast] = useState<ToastState>({ // Typed state
+  const [translating, setTranslating] = useState(false);
+  const [toast, setToast] = useState<ToastState>({
     show: false,
     title: "",
     description: "",
@@ -91,6 +89,44 @@ export default function Home() {
     );
   };
 
+  // Language detection function
+  const detectLanguage = (text: string): "en" | "bn" => {
+    // Simple Bengali detection - checks for Bengali Unicode range
+    const bengaliRegex = /[\u0980-\u09FF]/;
+    return bengaliRegex.test(text) ? "bn" : "en";
+  };
+
+  // Translation function using Google Translate API (free tier)
+  const translateText = async (text: string, targetLang: "en" | "bn"): Promise<string> => {
+    try {
+      setTranslating(true);
+      
+      // Using a free translation service (MyMemory API)
+      const sourceLang = targetLang === "en" ? "bn" : "en";
+      const response = await fetch(
+        `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${sourceLang}|${targetLang}`
+      );
+      
+      if (!response.ok) {
+        throw new Error('Translation service unavailable');
+      }
+      
+      const data = await response.json();
+      
+      if (data.responseStatus === 200) {
+        return data.responseData.translatedText;
+      } else {
+        throw new Error('Translation failed');
+      }
+    } catch (error) {
+      console.error('Translation error:', error);
+      // Fallback: return original text with a note
+      return `[Translation unavailable] ${text}`;
+    } finally {
+      setTranslating(false);
+    }
+  };
+
   useEffect(() => {
     if (typeof window !== "undefined") {
       const SpeechRecognition =
@@ -103,13 +139,13 @@ export default function Home() {
         recognitionInstance.interimResults = false;
         recognitionInstance.maxAlternatives = 1;
 
-        recognitionInstance.onresult = (event: SpeechRecognitionEvent) => { // Typed event
+        recognitionInstance.onresult = (event: SpeechRecognitionEvent) => {
           const transcript = event.results[0][0].transcript;
           setQuestion((prev) => prev + (prev ? " " : "") + transcript);
           setIsListening(false);
         };
 
-        recognitionInstance.onerror = (event: SpeechRecognitionErrorEvent) => { // Typed event
+        recognitionInstance.onerror = (event: SpeechRecognitionErrorEvent) => {
           console.error("Speech recognition error:", event.error);
           setIsListening(false);
 
@@ -141,8 +177,7 @@ export default function Home() {
         recognition.stop();
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Note: Added eslint-disable to manage dependency array warning if it appears
+  }, []);
 
   useEffect(() => {
     if (recognition) {
@@ -182,7 +217,7 @@ export default function Home() {
 
         setIsListening(true);
         recognition.start();
-      } catch (error) { // Typed error handling
+      } catch (error) {
         console.error("Error starting speech recognition:", error);
         setIsListening(false);
         let errorMessage = "Could not start recording.";
@@ -201,10 +236,21 @@ export default function Home() {
     }
   };
 
-  const speakText = (text: string) => { // Typed parameter
+  const speakText = (text: string, language?: "en" | "bn") => {
     if ("speechSynthesis" in window) {
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = selectedLanguage.startsWith("bn") ? "bn-BD" : "en-US";
+      
+      // Set language based on detected language or fallback
+      if (language === "bn") {
+        utterance.lang = "bn-BD";
+      } else if (language === "en") {
+        utterance.lang = "en-US";
+      } else {
+        // Auto-detect based on text content
+        const detectedLang = detectLanguage(text);
+        utterance.lang = detectedLang === "bn" ? "bn-BD" : "en-US";
+      }
+      
       utterance.rate = 0.8;
       speechSynthesis.speak(utterance);
     }
@@ -214,11 +260,19 @@ export default function Home() {
     if (!question.trim()) return;
 
     const userMessage = question;
-    setChatHistory((prev) => [...prev, { type: "user", message: userMessage }]);
+    const inputLanguage = detectLanguage(userMessage);
+    const targetLanguage = inputLanguage === "en" ? "bn" : "en";
+    
+    setChatHistory((prev) => [...prev, { 
+      type: "user", 
+      message: userMessage, 
+      language: inputLanguage 
+    }]);
     setQuestion("");
     setLoading(true);
 
     try {
+      // Get response from medical chatbot
       const res = await fetch(
         "https://medical-chatbot-backend-15xi.onrender.com/ask",
         {
@@ -232,23 +286,42 @@ export default function Home() {
         }
       );
       const data = await res.json();
-      const botResponse = data.answer;
+      let botResponse = data.answer;
+      
+      // Translate the response to the target language
+      try {
+        const translatedResponse = await translateText(botResponse, targetLanguage);
+        botResponse = translatedResponse;
+      } catch (translationError) {
+        console.error("Translation failed:", translationError);
+        // If translation fails, add a note to the original response
+        botResponse = `${botResponse}\n\n[Translation to ${targetLanguage === "bn" ? "Bengali" : "English"} unavailable]`;
+      }
+      
       setResponse(botResponse);
       setChatHistory((prev) => [
         ...prev,
-        { type: "bot", message: botResponse },
+        { 
+          type: "bot", 
+          message: botResponse, 
+          language: targetLanguage 
+        },
       ]);
     } catch (err) {
       const errorMsg =
         "I'm sorry, I'm having trouble connecting right now. Please try again in a moment.";
       setResponse(errorMsg);
-      setChatHistory((prev) => [...prev, { type: "bot", message: errorMsg }]);
+      setChatHistory((prev) => [...prev, { 
+        type: "bot", 
+        message: errorMsg,
+        language: "en"
+      }]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleKeyPress = (e: KeyboardEvent<HTMLTextAreaElement>) => { // Typed event
+  const handleKeyPress = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       askQuestion();
@@ -294,20 +367,26 @@ export default function Home() {
                     isDarkMode ? "text-gray-300" : "text-gray-600"
                   }`}
                 >
-                  Cancer Awareness & Support
+                  Cancer Awareness & Support • Auto-Translation
                 </p>
               </div>
             </div>
             <div className="flex items-center space-x-4">
+              {/* Translation Status Indicator */}
+              {translating && (
+                <div className="flex items-center space-x-2 px-3 py-1 rounded-full bg-blue-100 text-blue-700">
+                  <Languages className="w-4 h-4 animate-spin" />
+                  <span className="text-sm">Translating...</span>
+                </div>
+              )}
+
               {/* Language Selector */}
               <select
                 value={selectedLanguage}
                 onChange={(e) => setSelectedLanguage(e.target.value)}
                 className={`px-3 py-1 rounded-lg text-sm border transition-colors ${inputClasses}`}
               >
-                
                 <option value="en-IN">English (India)</option>
-                
                 <option value="bn-IN">বাংলা (India)</option>
               </select>
 
@@ -352,18 +431,28 @@ export default function Home() {
                   isDarkMode ? "text-white" : "text-gray-800"
                 }`}
               >
-                Welcome to Your Health Assistant
+                Welcome to Your Bilingual Health Assistant
               </h2>
               <p
                 className={`mb-6 max-w-2xl mx-auto ${
                   isDarkMode ? "text-gray-300" : "text-gray-600"
                 }`}
               >
-                I'm here to provide information about women's cancer awareness,
-                prevention, and support. Ask me questions using voice or text in
-                English or Bengali, and I'll help with reliable, compassionate
-                guidance.
+                Ask me questions in English or Bengali! I'll automatically respond in the opposite language. 
+                Get information about women's cancer awareness, prevention, and support with real-time translation.
               </p>
+
+              {/* Auto-Translation Feature Highlight */}
+              <div
+                className={`inline-flex items-center space-x-2 px-4 py-2 rounded-full mb-4 ${
+                  isDarkMode
+                    ? "bg-blue-900 text-blue-300 border border-blue-700"
+                    : "bg-blue-100 text-blue-700 border border-blue-200"
+                }`}
+              >
+                <Languages className="w-4 h-4" />
+                <span className="text-sm">Auto-Translation: English ↔ Bengali</span>
+              </div>
 
               {/* Speech Recognition Status */}
               {speechSupported && (
@@ -485,9 +574,18 @@ export default function Home() {
                     <p className="text-sm whitespace-pre-line">
                       {chat.message}
                     </p>
+                    
+                    {/* Language indicator */}
+                    <div className={`text-xs mt-1 opacity-70 ${
+                      chat.type === "user" ? "text-pink-100" : 
+                      isDarkMode ? "text-gray-400" : "text-gray-500"
+                    }`}>
+                      {chat.language === "bn" ? "বাংলা" : "English"}
+                    </div>
+                    
                     {chat.type === "bot" && (
                       <button
-                        onClick={() => speakText(chat.message)}
+                        onClick={() => speakText(chat.message, chat.language)}
                         className={`absolute top-2 right-2 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity ${
                           isDarkMode ? "hover:bg-gray-600" : "hover:bg-gray-200"
                         }`}
@@ -499,7 +597,7 @@ export default function Home() {
                   </div>
                 </div>
               ))}
-              {loading && (
+              {(loading || translating) && (
                 <div className="flex justify-start">
                   <div
                     className={`px-4 py-3 rounded-2xl max-w-xs ${
@@ -525,7 +623,7 @@ export default function Home() {
                           isDarkMode ? "text-gray-300" : "text-gray-600"
                         }`}
                       >
-                        Thinking...
+                        {translating ? "Translating..." : "Thinking..."}
                       </span>
                     </div>
                   </div>
@@ -542,7 +640,7 @@ export default function Home() {
                   ref={textareaRef}
                   rows={3}
                   className={`w-full border-2 rounded-xl p-4 pr-12 resize-none focus:outline-none transition-colors ${inputClasses}`}
-                  placeholder="Ask your question in English or Bengali... (Press Enter to send, Shift+Enter for new line)"
+                  placeholder="Ask in English (get Bengali answer) or in Bengali (get English answer)... (Press Enter to send)"
                   value={question}
                   onChange={(e) => setQuestion(e.target.value)}
                   onKeyPress={handleKeyPress}
@@ -552,7 +650,7 @@ export default function Home() {
                 {speechSupported && (
                   <button
                     onClick={isListening ? stopListening : startListening}
-                    disabled={loading}
+                    disabled={loading || translating}
                     className={`absolute right-3 top-3 p-2 rounded-lg transition-all duration-200 flex-shrink-0 ${
                       isListening
                         ? "bg-red-500 text-white animate-pulse hover:bg-red-600"
@@ -577,9 +675,9 @@ export default function Home() {
               <button
                 onClick={askQuestion}
                 className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white font-semibold px-6 py-3 rounded-xl transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center min-w-[100px]"
-                disabled={loading || !question.trim()}
+                disabled={loading || translating || !question.trim()}
               >
-                {loading ? (
+                {loading || translating ? (
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                 ) : (
                   <Send className="w-5 h-5" />
@@ -595,6 +693,20 @@ export default function Home() {
                 <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
               </div>
             )}
+
+            {/* Translation Feature Info */}
+            <div className={`mt-3 p-3 rounded-lg border transition-colors ${
+              isDarkMode 
+                ? "bg-blue-900 border-blue-700 text-blue-200"
+                : "bg-blue-50 border-blue-200 text-blue-800"
+            }`}>
+              <div className="flex items-center space-x-2">
+                <Languages className="w-4 h-4" />
+                <p className="text-sm">
+                  <strong>Auto-Translation:</strong> Ask in English to get Bengali answers, or ask in Bengali to get English answers!
+                </p>
+              </div>
+            </div>
 
             {/* Toast Notification */}
             {toast.show && (
@@ -671,6 +783,10 @@ export default function Home() {
               </div>
               <div className="flex items-center space-x-2">
                 <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
+                <span>Auto-Translation</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 bg-orange-400 rounded-full"></div>
                 <span>Evidence-Based Information</span>
               </div>
             </div>
@@ -680,7 +796,7 @@ export default function Home() {
               }`}
             >
               Empowering women with knowledge and support for better health
-              outcomes
+              outcomes • English ↔ Bengali Translation
             </p>
           </div>
         </div>
