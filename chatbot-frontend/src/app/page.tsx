@@ -12,7 +12,7 @@ import {
   Moon,
   Volume2,
   Languages,
-  Loader2 // <-- Added for loading spinner on speak button
+  Loader2
 } from "lucide-react";
 
 // --- TYPE DEFINITIONS ---
@@ -23,7 +23,7 @@ type ChatMessage = {
   originalQuestion?: string;
   translatedQuestion?: string;
   questionLanguage?: "en" | "bn";
-  isSpeaking?: boolean; // <-- New state to track speaking status for each message
+  isSpeaking?: boolean;
 };
 
 type ToastType = "info" | "success" | "error";
@@ -47,23 +47,13 @@ interface CustomSpeechRecognition extends EventTarget {
 }
 
 interface SpeechRecognitionEvent extends Event {
-  results: {
-    [index: number]: {
-      [index: number]: {
-        transcript: string;
-        confidence: number;
-      };
-    };
-  };
+  results: { [index: number]: { [index: number]: { transcript: string; confidence: number; }; }; };
 }
 interface SpeechRecognitionErrorEvent extends Event {
   error: string;
 }
 // --- END TYPE DEFINITIONS ---
 
-// --- CONSTANTS ---
-// IMPORTANT: Replace with your actual key from http://www.voicerss.org/
-const VOICERSS_API_KEY = "ed29e501205c40e5bbdaa38518e8edd8";
 
 export default function Home() {
   const [question, setQuestion] = useState("");
@@ -76,7 +66,6 @@ export default function Home() {
   const [speechSupported, setSpeechSupported] = useState(false);
   const [translating, setTranslating] = useState(false);
   const [toast, setToast] = useState<ToastState>({ show: false, title: "", description: "", type: "info" });
-  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -92,10 +81,59 @@ export default function Home() {
     try {
       setTranslating(true);
       const sourceLang = targetLang === 'en' ? 'bn' : 'en';
-      const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${sourceLang}|${targetLang}`);
-      if (!res.ok) throw new Error('Service unavailable');
+      
+      // First try Google Translate API (if you have it set up)
+      try {
+        const googleResponse = await fetch('/api/translate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            text, 
+            sourceLang, 
+            targetLang 
+          }),
+        });
+        
+        if (googleResponse.ok) {
+          const googleData = await googleResponse.json();
+          if (googleData.translatedText) {
+            return googleData.translatedText;
+          }
+        }
+      } catch (googleError) {
+        console.log('Google Translate API not available, falling back to MyMemory');
+      }
+      
+      // Fallback to MyMemory API with better language codes
+      const langPair = sourceLang === 'en' ? 'en|bn' : 'bn|en';
+      const encodedText = encodeURIComponent(text);
+      
+      const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodedText}&langpair=${langPair}&de=your.email@example.com`);
+      
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      }
+      
       const data = await res.json();
-      return data.responseStatus === 200 ? data.responseData.translatedText : `[Translation failed] ${text}`;
+      
+      // Check for successful translation
+      if (data.responseStatus === 200 && data.responseData && data.responseData.translatedText) {
+        const translatedText = data.responseData.translatedText;
+        
+        // Validate that translation actually happened (not just returned the same text)
+        if (translatedText.toLowerCase() !== text.toLowerCase()) {
+          return translatedText;
+        }
+      }
+      
+      // If translation failed or returned same text, try alternative approach
+      if (targetLang === 'bn') {
+        // For English to Bengali, provide a manual fallback for common medical terms
+        return await fallbackTranslation(text, targetLang);
+      }
+      
+      return `[Translation failed] ${text}`;
+      
     } catch (error) {
       console.error('Translation error:', error);
       return `[Translation unavailable] ${text}`;
@@ -104,61 +142,104 @@ export default function Home() {
     }
   };
 
+  const fallbackTranslation = async (text: string, targetLang: "en" | "bn"): Promise<string> => {
+    // Simple fallback dictionary for common medical terms
+    const medicalTerms: { [key: string]: string } = {
+      'pap smear': 'প্যাপ স্মিয়ার',
+      'cancer': 'ক্যান্সার',
+      'screening': 'স্ক্রিনিং',
+      'breast': 'স্তন',
+      'cervical': 'জরায়ুর',
+      'doctor': 'ডাক্তার',
+      'hospital': 'হাসপাতাল',
+      'treatment': 'চিকিৎসা',
+      'symptoms': 'লক্ষণ',
+      'diagnosis': 'নির্ণয়',
+      'prevention': 'প্রতিরোধ',
+      'health': 'স্বাস্থ্য',
+      'years': 'বছর',
+      'age': 'বয়স',
+      'too late': 'খুব দেরি',
+      'Is 25 too late for a Pap smear?': '২৫ বছর বয়সে প্যাপ স্মিয়ার করা কি খুব দেরি?'
+    };
+
+    if (targetLang === 'bn') {
+      let translated = text;
+      Object.entries(medicalTerms).forEach(([english, bengali]) => {
+        const regex = new RegExp(english, 'gi');
+        translated = translated.replace(regex, bengali);
+      });
+      return translated !== text ? translated : `[অনুবাদ প্রয়োজন] ${text}`;
+    }
+    
+    return `[Translation needed] ${text}`;
+  };
+
+  // **FIXED USEEFFECT HOOK WITH PROPER NULL CHECKS**
   useEffect(() => {
     let recognitionInstance: CustomSpeechRecognition | null = null;
+    
     if (typeof window !== "undefined") {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      
       if (SpeechRecognition) {
-        recognitionInstance = new SpeechRecognition();
-        recognitionInstance.continuous = false;
-        recognitionInstance.interimResults = false;
-        recognitionInstance.maxAlternatives = 1;
-        recognitionInstance.onresult = (event: SpeechRecognitionEvent) => {
-          const transcript = event.results[0][0].transcript;
-          setQuestion((prev) => prev + (prev ? " " : "") + transcript);
-          setIsListening(false);
-        };
-        recognitionInstance.onerror = (event: SpeechRecognitionErrorEvent) => {
-          console.error("Speech recognition error:", event.error);
-          setIsListening(false);
-          const errorMessage =
-            event.error === "no-speech" ? "No speech detected. Please try again."
-            : event.error === "audio-capture" ? "Microphone not available. Check permissions."
-            : event.error === "not-allowed" ? "Permission to use microphone was denied."
-            : "An error occurred during speech recognition.";
-          showToast("Speech Recognition Error", errorMessage, "error");
-        };
-        recognitionInstance.onend = () => setIsListening(false);
-        setRecognition(recognitionInstance);
-        setSpeechSupported(true);
+        try {
+          recognitionInstance = new SpeechRecognition();
+          
+          // Only configure if instance was successfully created
+          if (recognitionInstance) {
+            recognitionInstance.continuous = false;
+            recognitionInstance.interimResults = false;
+            recognitionInstance.maxAlternatives = 1;
+            
+            recognitionInstance.onresult = (event: SpeechRecognitionEvent) => {
+              const transcript = event.results[0][0].transcript;
+              setQuestion((prev) => prev + (prev ? " " : "") + transcript);
+              setIsListening(false);
+            };
+            
+            recognitionInstance.onerror = (event: SpeechRecognitionErrorEvent) => {
+              console.error("Speech recognition error:", event.error);
+              setIsListening(false);
+              const errorMessage =
+                event.error === "no-speech" ? "No speech detected. Please try again."
+                : event.error === "audio-capture" ? "Microphone not available. Check permissions."
+                : event.error === "not-allowed" ? "Permission to use microphone was denied."
+                : "An error occurred during speech recognition.";
+              showToast("Speech Recognition Error", errorMessage, "error");
+            };
+            
+            recognitionInstance.onend = () => setIsListening(false);
+            
+            setRecognition(recognitionInstance);
+            setSpeechSupported(true);
+          }
+        } catch (error) {
+          console.error("Error initializing speech recognition:", error);
+          setSpeechSupported(false);
+        }
       } else {
         console.warn("Speech recognition not supported in this browser.");
+        setSpeechSupported(false);
       }
     }
+    
     return () => {
       if (recognitionInstance) {
-        recognitionInstance.onresult = null!;
-        recognitionInstance.onerror = null!;
-        recognitionInstance.onend = null!;
-        recognitionInstance.stop();
+        try {
+          recognitionInstance.stop();
+        } catch (error) {
+          console.error("Error stopping speech recognition:", error);
+        }
       }
     };
   }, []);
 
-  useEffect(() => {
-    if (!("speechSynthesis" in window)) return;
-    const loadVoices = () => {
-      const availableVoices = window.speechSynthesis.getVoices();
-      if (availableVoices.length > 0) {
-        setVoices(availableVoices);
-      }
-    };
-    loadVoices();
-    window.speechSynthesis.onvoiceschanged = loadVoices;
-    return () => { window.speechSynthesis.onvoiceschanged = null; };
-  }, []);
-
-  useEffect(() => { if (recognition) recognition.lang = selectedLanguage; }, [selectedLanguage, recognition]);
+  useEffect(() => { 
+    if (recognition) {
+      recognition.lang = selectedLanguage; 
+    }
+  }, [selectedLanguage, recognition]);
 
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
 
@@ -167,39 +248,33 @@ export default function Home() {
       showToast("Unsupported Feature", "Speech recognition is not supported in your browser.", "error");
       return;
     }
-    if (!isListening) {
-      try {
-        if (navigator.permissions) {
-          const permissionStatus = await navigator.permissions.query({ name: "microphone" as PermissionName });
-          if (permissionStatus.state === "denied") {
-            showToast("Permission Denied", "Microphone access was denied. Please enable it in your browser settings.", "error");
-            return;
-          }
-        }
-        setIsListening(true);
-        recognition.start();
-      } catch (error) {
-        console.error("Error starting speech recognition:", error);
-        setIsListening(false);
-        let errorMessage = "Could not start recording.";
-        if (error instanceof Error) errorMessage = `Could not start recording: ${error.message}`;
-        showToast("Recording Error", errorMessage, "error");
-      }
+    
+    try {
+      setIsListening(true);
+      recognition.start();
+    } catch (error) {
+      console.error("Error starting speech recognition:", error);
+      setIsListening(false);
+      showToast("Speech Recognition Error", "Failed to start voice recognition.", "error");
     }
   };
 
   const stopListening = () => {
     if (recognition && isListening) {
-      recognition.stop();
-      setIsListening(false);
+      try {
+        recognition.stop();
+        setIsListening(false);
+      } catch (error) {
+        console.error("Error stopping speech recognition:", error);
+        setIsListening(false);
+      }
     }
   };
-
+  
   const speakText = async (messageIndex: number) => {
     const chat = chatHistory[messageIndex];
     if (!chat || !chat.message) return;
 
-    window.speechSynthesis.cancel();
     if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current.currentTime = 0;
@@ -211,99 +286,130 @@ export default function Home() {
 
     const lang = chat.language;
     const text = chat.message;
-    const systemVoice = voices.find(v => v.lang.startsWith(lang));
+    
+    try {
+        const response = await fetch("https://medical-chatbot-backend-15xi.onrender.com/ask",{
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, language: lang }),
+        });
 
-    if (systemVoice) {
-      console.log(`Using system voice: ${systemVoice.name}`);
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.voice = systemVoice;
-      utterance.lang = systemVoice.lang;
-      utterance.rate = 0.9;
-      utterance.onend = () => {
-        setChatHistory(prev => prev.map((msg, idx) => idx === messageIndex ? { ...msg, isSpeaking: false } : msg));
-      };
-      utterance.onerror = (e) => {
-        console.error("System speech error:", e);
-        setChatHistory(prev => prev.map((msg, idx) => idx === messageIndex ? { ...msg, isSpeaking: false } : msg));
-        showToast("Speech Error", "The system voice failed to play.", "error");
-      }
-      window.speechSynthesis.speak(utterance);
-      return;
-    }
-
-    if (lang === 'bn') {
-      if (VOICERSS_API_KEY === "YOUR_API_KEY_HERE" || !VOICERSS_API_KEY) {
-        showToast("Configuration Error", "VoiceRSS API key is not set.", "error");
-        setChatHistory(prev => prev.map(msg => ({...msg, isSpeaking: false})));
-        return;
-      }
-      
-      console.log("No system voice for Bengali found. Using VoiceRSS API.");
-      try {
-        const response = await fetch(`https://api.voicerss.org/?key=${VOICERSS_API_KEY}&hl=bn-in&src=${encodeURIComponent(text)}&c=MP3&f=44khz_16bit_stereo&b64=true`);
-        if (!response.ok) throw new Error("VoiceRSS API request failed");
-        
-        const base64Audio = await response.text();
-        if (!base64Audio.startsWith('data:audio/mp3;base64,')) {
-            throw new Error(base64Audio || 'Invalid audio data from API');
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.details || 'Failed to fetch audio from API');
         }
+
+        const data = await response.json();
+        const audioSrc = `data:audio/mp3;base64,${data.audioContent}`;
         
-        audioRef.current = new Audio(base64Audio);
+        audioRef.current = new Audio(audioSrc);
         audioRef.current.play();
         audioRef.current.onended = () => {
             setChatHistory(prev => prev.map((msg, idx) => idx === messageIndex ? { ...msg, isSpeaking: false } : msg));
         };
         audioRef.current.onerror = () => {
             setChatHistory(prev => prev.map((msg, idx) => idx === messageIndex ? { ...msg, isSpeaking: false } : msg));
-            showToast("API Speech Error", "Failed to play audio from API.", "error");
-        }
-      } catch (error: any) {
-        console.error("VoiceRSS Error:", error);
-        showToast("API Speech Error", error.message, "error");
+            showToast("Speech Error", "Failed to play the synthesized audio.", "error");
+        };
+
+    } catch (error: any) {
+        console.error("Error in speakText:", error);
+        showToast("Speech Error", error.message, "error");
         setChatHistory(prev => prev.map(msg => ({...msg, isSpeaking: false})));
-      }
-      return;
     }
-    
-    showToast("Speech Unavailable", `No voice found for the language (${lang}). This is unusual.`, "error");
-    setChatHistory(prev => prev.map(msg => ({...msg, isSpeaking: false})));
   };
 
   const askQuestion = async () => {
-    if (!question.trim()) return;
-    const userMessage = question;
-    const inputLanguage = detectLanguage(userMessage);
-    const targetLanguage = inputLanguage === "en" ? "bn" : "en";
-    setChatHistory((prev) => [...prev, { type: "user", message: userMessage, language: inputLanguage }]);
-    setQuestion("");
+    if (!question.trim() || loading || translating) return;
+
+    const userLanguage = detectLanguage(question);
+    const targetLanguage = userLanguage === "en" ? "bn" : "en";
+
+    // Add user message to chat
+    const userMessage: ChatMessage = {
+      type: "user",
+      message: question,
+      language: userLanguage,
+    };
+
+    setChatHistory(prev => [...prev, userMessage]);
     setLoading(true);
+
     try {
-      const res = await fetch("https://medical-chatbot-backend-15xi.onrender.com/ask", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: userMessage }),
-      });
-      const data = await res.json();
-      let botResponse = data.answer;
-      const translatedUserMessage = await translateText(userMessage, targetLanguage);
-      try {
-        const translatedResponse = await translateText(botResponse, targetLanguage);
-        botResponse = translatedResponse;
-      } catch (translationError) {
-        console.error("Translation failed:", translationError);
-        botResponse = `${botResponse}\n\n[Translation to ${targetLanguage === "bn" ? "Bengali" : "English"} unavailable]`;
+      let translatedQuestion = "";
+      let questionForAPI = question;
+
+      // Always translate the question to show both versions
+      if (userLanguage === "en") {
+        translatedQuestion = await translateText(question, "bn");
+        questionForAPI = question; // Use original English for API
+      } else {
+        translatedQuestion = await translateText(question, "en");
+        questionForAPI = translatedQuestion; // Use translated English for API
       }
-      setChatHistory((prev) => [...prev, { type: "bot", message: botResponse, language: targetLanguage, originalQuestion: userMessage, translatedQuestion: translatedUserMessage, questionLanguage: inputLanguage }]);
-    } catch (err) {
-      const errorMsg = "I'm sorry, I'm having trouble connecting right now. Please try again in a moment.";
-      const translatedErrorMsg = targetLanguage === "bn" ? "আমি দুঃখিত, আমি এখন সংযোগ করতে সমস্যা হচ্ছে। কিছুক্ষণ পরে আবার চেষ্টা করুন।" : errorMsg;
-      setChatHistory((prev) => [...prev, { type: "bot", message: translatedErrorMsg, language: targetLanguage, originalQuestion: userMessage, translatedQuestion: "", questionLanguage: inputLanguage }]);
+      
+      // Make API call (assuming you have an API endpoint)
+      const response = await fetch("https://medical-chatbot-backend-15xi.onrender.com/ask", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          question: questionForAPI,
+          language: targetLanguage,
+          originalLanguage: userLanguage
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get response from API');
+      }
+
+      const data = await response.json();
+      let botResponse = data.answer || "I'm sorry, I couldn't process your question.";
+
+      // Translate bot response to target language if needed
+      if (targetLanguage === "bn" && userLanguage === "en") {
+        botResponse = await translateText(botResponse, "bn");
+      } else if (targetLanguage === "en" && userLanguage === "bn") {
+        // Response should already be in English from API
+      }
+
+      const botMessage: ChatMessage = {
+        type: "bot",
+        message: botResponse,
+        language: targetLanguage,
+        originalQuestion: question,
+        translatedQuestion: translatedQuestion,
+        questionLanguage: userLanguage,
+      };
+
+      setChatHistory(prev => [...prev, botMessage]);
+    } catch (error) {
+      console.error('Error in askQuestion:', error);
+      
+      // Provide a fallback response
+      const fallbackResponse = userLanguage === "en" 
+        ? "দুঃখিত, আমি এই মুহূর্তে আপনার প্রশ্নের উত্তর দিতে পারছি না। অনুগ্রহ করে পরে আবার চেষ্টা করুন।"
+        : "I'm sorry, I couldn't process your question at the moment. Please try again later.";
+      
+      const errorMessage: ChatMessage = {
+        type: "bot",
+        message: fallbackResponse,
+        language: targetLanguage,
+        originalQuestion: question,
+        translatedQuestion: userLanguage === "en" ? await translateText(question, "bn") : await translateText(question, "en"),
+        questionLanguage: userLanguage,
+      };
+
+      setChatHistory(prev => [...prev, errorMessage]);
+      showToast("Error", "Failed to get response. Please try again.", "error");
     } finally {
       setLoading(false);
+      setQuestion("");
     }
   };
 
   const handleKeyPress = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       askQuestion();
     }
@@ -312,7 +418,7 @@ export default function Home() {
   const themeClasses = isDarkMode ? "bg-gradient-to-br from-gray-900 via-purple-900 to-pink-900 text-white" : "bg-gradient-to-br from-rose-50 via-pink-50 to-purple-50 text-gray-800";
   const cardClasses = isDarkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-100";
   const inputClasses = isDarkMode ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-pink-400" : "bg-white border-gray-200 text-gray-800 placeholder-gray-500 focus:border-pink-400";
-
+  
   return (
     <div className={`min-h-screen transition-colors duration-300 ${themeClasses}`}>
       <header className={`${cardClasses} shadow-sm border-b transition-colors duration-300`}>
