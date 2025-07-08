@@ -99,15 +99,16 @@ The frontend will be available on:
 #### Request Format
 ```json
 {
-  "message": "Your medical question here"
+  "question": "Can HPV transmit through kissing?"
 }
 ```
 
 #### Response Format
 ```json
 {
-  "response": "AI-generated medical response",
-  "timestamp": "2024-01-01T12:00:00Z"
+    "answer": "Deep kissing or mouth to mouth kissing can spread the virus ",
+    "score": 1,
+    "language": "en"
 }
 ```
 
