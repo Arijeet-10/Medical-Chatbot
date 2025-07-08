@@ -48,7 +48,7 @@ Before running this application, make sure you have the following installed:
 
 ### 1. Clone the Repository
 ```bash
-git clone <repository-url>
+git clone [<repository-url>](https://github.com/Arijeet-10/Medical-Chatbot.git)
 cd medical-chatbot
 ```
 
