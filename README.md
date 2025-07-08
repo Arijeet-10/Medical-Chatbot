@@ -2,6 +2,8 @@
 
 A comprehensive medical chatbot application built with Python backend and Next.js frontend, designed to provide medical information and assistance through an interactive chat interface.
 
+## Chatbot Link: https://medical-chatbot-mu.vercel.app/
+
 ## 🏗️ Project Structure
 
 ```
